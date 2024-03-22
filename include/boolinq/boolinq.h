@@ -14,6 +14,8 @@
 #include <set>
 #include <unordered_set>
 
+#include "CoreMinimal.h"
+
 namespace boolinq {
 
     namespace priv {
@@ -655,6 +657,15 @@ namespace boolinq {
             return items;
         }
 
+        TArray<T> toUeTArray() const
+        {
+            TArray<T> items;
+            for_each([&items](T value) {
+                items.Emplace(value);
+            });
+            return items;
+        }
+
         // Bits and bytes
 
         Linq<std::tuple<Linq<S, T>, BytesDirection, T, int>, int> bytes(BytesDirection direction = BytesFirstToLast) const
@@ -860,6 +871,51 @@ namespace boolinq {
         -> decltype(from(container.cbegin(), container.cend()))
     {
         return from(container.cbegin(), container.cend());
+    }
+
+    // ue::tarray
+    template<template<class, class> class TV, typename TT, typename TU>
+    auto uefrom(TV<TT, TU>& container)
+    {
+        auto begin = container.begin();
+        auto end = container.end();
+        typedef decltype(container.begin()) TI;
+
+        return Linq<std::pair<TI, TI>, TT>(
+            std::make_pair(begin, end), [](std::pair<TI, TI> &pair) 
+            {
+                if (pair.first != pair.second)
+                {
+                    auto first = pair.first;
+                    ++pair.first;
+                    return *first;
+                } 
+                else
+                    throw LinqEndException();
+            }
+        );
+    }
+
+    // ue::tmap
+    template<template<class, class, class, class> class TV, typename TK, typename TT, typename TS, typename TU>
+    auto uefrom(const TV<TK, TT, TS, TU>& container)
+    {
+        typedef decltype(container.begin()) TI;
+        typedef decltype(&(*container.begin())) TP;
+
+        return Linq<std::pair<TI, TI>, TP>(
+            std::make_pair(container.begin(), container.end()), [](std::pair<TI, TI>& pair) 
+            {
+                if (pair.first != pair.second)
+                {
+                    TI first = pair.first;
+                    ++pair.first;
+                    return &(*first);
+                } 
+                else
+                    throw LinqEndException();
+            }
+        );
     }
 
     template<typename T>
