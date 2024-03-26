@@ -666,6 +666,17 @@ namespace boolinq {
             return items;
         }
 
+        template <typename TK, typename TV>
+        auto toUeTMap(std::function<TK (T)> FK, std::function<TV (T)> FV) const
+            ->TMap<TK, TV>
+        {
+            TMap<TK, TV> items;
+            for_each([&items, FK, FV](T value) {
+                items.Emplace(FK(value), FV(value));
+            });
+            return items;
+        }
+
         // Bits and bytes
 
         Linq<std::tuple<Linq<S, T>, BytesDirection, T, int>, int> bytes(BytesDirection direction = BytesFirstToLast) const
@@ -873,17 +884,13 @@ namespace boolinq {
         return from(container.cbegin(), container.cend());
     }
 
-    // ue::tarray
-    template<template<class, class> class TV, typename TT, typename TU>
-    auto uefrom(TV<TT, TU>& container)
+    // ue::ranged container interator
+    template<typename T, typename TV>
+    auto uefrom_ranged(const T& begin, const T& end)
     {
-        auto begin = container.begin();
-        auto end = container.end();
-        typedef decltype(container.begin()) TI;
-
-        return Linq<std::pair<TI, TI>, TT>(
-            std::make_pair(begin, end), [](std::pair<TI, TI> &pair) 
-            {
+        return Linq<std::pair<T, T>, TV>(
+            std::make_pair(begin, end),
+            [](std::pair<T, T> &pair) {
                 if (pair.first != pair.second)
                 {
                     auto first = pair.first;
@@ -896,26 +903,35 @@ namespace boolinq {
         );
     }
 
+    // ue::indxed container interator
+    template<typename T, typename TV>
+    auto uefrom(const T& begin, const T& end)
+    {
+        return Linq<std::pair<T, T>, TV>(
+            std::make_pair(begin, end),
+            [](std::pair<T, T> &pair) {
+                if (pair.first == pair.second) {
+                    throw LinqEndException();
+                }
+                return *(pair.first++);
+            }
+        );
+    }
+
+    // ue::tarray
+    template<template<class, class> class TV, typename TT, typename TU>
+    auto uefrom(const TV<TT, TU>& container)
+    {
+        auto I = container.CreateConstIterator();
+        return uefrom<decltype(I), TT>(I, I + container.Num());
+    }
+
     // ue::tmap
     template<template<class, class, class, class> class TV, typename TK, typename TT, typename TS, typename TU>
     auto uefrom(const TV<TK, TT, TS, TU>& container)
     {
-        typedef decltype(container.begin()) TI;
-        typedef decltype(&(*container.begin())) TP;
-
-        return Linq<std::pair<TI, TI>, TP>(
-            std::make_pair(container.begin(), container.end()), [](std::pair<TI, TI>& pair) 
-            {
-                if (pair.first != pair.second)
-                {
-                    TI first = pair.first;
-                    ++pair.first;
-                    return &(*first);
-                } 
-                else
-                    throw LinqEndException();
-            }
-        );
+        auto I = container.begin();
+        return uefrom_ranged<decltype(I), TPair<TK, TT>>(I, container.end());
     }
 
     template<typename T>
